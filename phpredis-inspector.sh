@@ -6,7 +6,7 @@
 # This tool detects, suggests, and can automatically fix PhpRedis issues
 #############################################################################
 
-set -e
+# Note: Not using 'set -e' as we intentionally allow some checks to fail
 
 # Color codes for output
 RED='\033[0;31m'
@@ -96,8 +96,13 @@ check_phpredis_installed() {
 }
 
 check_redis_server() {
+    REDIS_INSTALLED=false
+    REDIS_RUNNING=false
+    
     if command -v redis-cli &> /dev/null; then
+        REDIS_INSTALLED=true
         if redis-cli ping &> /dev/null; then
+            REDIS_RUNNING=true
             REDIS_SERVER_VERSION=$(redis-cli --version | awk '{print $2}')
             print_success "Redis server is running (version: $REDIS_SERVER_VERSION)"
             return 0
@@ -178,9 +183,10 @@ check_php_version_compatibility() {
 generate_report() {
     local php_installed=$1
     local phpredis_installed=$2
-    local redis_server=$3
-    local redis_connection=$4
-    local php_version_compatible=$5
+    local redis_installed=$3
+    local redis_running=$4
+    local redis_connection=$5
+    local php_version_compatible=$6
     
     PHP_VERSION=$($PHP_BINARY -v | head -n 1 | cut -d' ' -f2)
     REDIS_EXT_VERSION=$($PHP_BINARY -r "echo phpversion('redis');" 2>/dev/null || echo "not installed")
@@ -200,8 +206,8 @@ generate_report() {
     "version": "$REDIS_EXT_VERSION"
   },
   "redis_server": {
-    "installed": $redis_server,
-    "running": $redis_server,
+    "installed": $redis_installed,
+    "running": $redis_running,
     "version": "$REDIS_SERVER_VERSION"
   },
   "connection": {
@@ -217,15 +223,21 @@ EOF
         needs_comma=true
     fi
     
-    if [ "$redis_server" = "false" ]; then
+    if [ "$redis_installed" = "false" ]; then
         if [ "$needs_comma" = "true" ]; then
             echo "," >> "$OUTPUT_FILE"
         fi
-        echo -n "    \"Install and start Redis server\"" >> "$OUTPUT_FILE"
+        echo -n "    \"Install Redis server\"" >> "$OUTPUT_FILE"
+        needs_comma=true
+    elif [ "$redis_running" = "false" ]; then
+        if [ "$needs_comma" = "true" ]; then
+            echo "," >> "$OUTPUT_FILE"
+        fi
+        echo -n "    \"Start Redis server\"" >> "$OUTPUT_FILE"
         needs_comma=true
     fi
     
-    if [ "$redis_connection" = "false" ] && [ "$phpredis_installed" = "true" ]; then
+    if [ "$redis_connection" = "false" ] && [ "$phpredis_installed" = "true" ] && [ "$redis_running" = "true" ]; then
         if [ "$needs_comma" = "true" ]; then
             echo "," >> "$OUTPUT_FILE"
         fi
@@ -271,7 +283,8 @@ run_inspection() {
     # Run all checks
     php_installed=false
     phpredis_installed=false
-    redis_server=false
+    redis_installed=false
+    redis_running=false
     redis_connection=false
     php_version_compatible=false
     
@@ -296,7 +309,8 @@ run_inspection() {
     echo ""
     print_info "Step 4: Checking Redis server..."
     if check_redis_server; then
-        redis_server=true
+        redis_installed=$REDIS_INSTALLED
+        redis_running=$REDIS_RUNNING
     fi
     
     echo ""
@@ -325,13 +339,15 @@ run_inspection() {
             print_info "→ Install PhpRedis extension using: ./install-helper.sh"
         fi
         
-        if [ "$redis_server" = "false" ]; then
-            print_info "→ Install and start Redis server"
+        if [ "$redis_installed" = "false" ]; then
+            print_info "→ Install Redis server"
+        elif [ "$redis_running" = "false" ]; then
+            print_info "→ Start Redis server"
         fi
     fi
     
     echo ""
-    generate_report "$php_installed" "$phpredis_installed" "$redis_server" "$redis_connection" "$php_version_compatible"
+    generate_report "$php_installed" "$phpredis_installed" "$redis_installed" "$redis_running" "$redis_connection" "$php_version_compatible"
     
     # Auto-fix if requested
     if [ "$AUTO_FIX" = true ] && [ "$phpredis_installed" = "false" ]; then

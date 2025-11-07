@@ -6,7 +6,7 @@
 # This script automatically installs missing PhpRedis extensions
 #############################################################################
 
-set -e
+# Note: Not using 'set -e' as we intentionally try multiple installation methods
 
 # Color codes for output
 RED='\033[0;31m'
@@ -165,7 +165,8 @@ install_via_package() {
             ;;
         alpine)
             print_info "Installing via apk..."
-            sudo apk add php${PHP_VERSION_SHORT:0:1}-redis || sudo apk add php-redis
+            PHP_MAJOR=$(echo "$PHP_VERSION_SHORT" | cut -d. -f1)
+            sudo apk add php${PHP_MAJOR}-redis || sudo apk add php-redis
             ;;
         darwin)
             print_info "Installing via brew..."
@@ -222,6 +223,18 @@ install_via_source() {
 enable_extension() {
     print_info "Enabling PhpRedis extension..."
     
+    # Check if extension is already enabled
+    if $PHP_BINARY -m | grep -q "redis"; then
+        print_success "Redis extension is already enabled"
+        return 0
+    fi
+    
+    # Determine extension format (check existing extensions)
+    EXT_FORMAT="extension=redis"
+    if $PHP_BINARY --ini | grep -q "\.so"; then
+        EXT_FORMAT="extension=redis.so"
+    fi
+    
     # Find PHP configuration directory
     PHP_INI_DIR=$($PHP_BINARY --ini | grep "Scan for additional .ini files" | cut -d: -f2 | xargs)
     
@@ -231,7 +244,7 @@ enable_extension() {
         
         if [ -f "$PHP_INI" ]; then
             if ! grep -q "extension=redis" "$PHP_INI"; then
-                echo "extension=redis.so" | sudo tee -a "$PHP_INI" > /dev/null
+                echo "$EXT_FORMAT" | sudo tee -a "$PHP_INI" > /dev/null
                 print_success "Added redis extension to $PHP_INI"
             fi
         fi
@@ -239,7 +252,7 @@ enable_extension() {
         # Create separate ini file
         REDIS_INI="$PHP_INI_DIR/20-redis.ini"
         if [ ! -f "$REDIS_INI" ]; then
-            echo "extension=redis.so" | sudo tee "$REDIS_INI" > /dev/null
+            echo "$EXT_FORMAT" | sudo tee "$REDIS_INI" > /dev/null
             print_success "Created $REDIS_INI"
         fi
     fi
