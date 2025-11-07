@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-11-07T08:31:49Z",
+  "php": {
+    "installed": true,
+    "version": "8.3.6",
+    "compatible": true,
+    "binary": "php"
+  },
+  "phpredis": {
+    "installed": true,
+    "version": "5.3.7"
+  },
+  "redis_server": {
+    "installed": false,
+    "running": false,
+    "version": ""
+  },
+  "connection": {
+    "successful": false
+  },
+  "recommendations": [
+    "Install and start Redis server"
+,
+    "Check Redis server connection settings"
+  ],
+  "status": "needs_attention"
+}
