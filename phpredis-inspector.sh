@@ -213,7 +213,7 @@ EOF
     local needs_comma=false
     
     if [ "$phpredis_installed" = "false" ]; then
-        echo "    \"Install PhpRedis extension using install-helper.sh\"" >> "$OUTPUT_FILE"
+        echo -n "    \"Install PhpRedis extension using install-helper.sh\"" >> "$OUTPUT_FILE"
         needs_comma=true
     fi
     
@@ -221,7 +221,7 @@ EOF
         if [ "$needs_comma" = "true" ]; then
             echo "," >> "$OUTPUT_FILE"
         fi
-        echo "    \"Install and start Redis server\"" >> "$OUTPUT_FILE"
+        echo -n "    \"Install and start Redis server\"" >> "$OUTPUT_FILE"
         needs_comma=true
     fi
     
@@ -229,9 +229,12 @@ EOF
         if [ "$needs_comma" = "true" ]; then
             echo "," >> "$OUTPUT_FILE"
         fi
-        echo "    \"Check Redis server connection settings\"" >> "$OUTPUT_FILE"
+        echo -n "    \"Check Redis server connection settings\"" >> "$OUTPUT_FILE"
         needs_comma=true
     fi
+    
+    # Add final newline
+    echo "" >> "$OUTPUT_FILE"
     
     cat >> "$OUTPUT_FILE" << EOF
   ],
