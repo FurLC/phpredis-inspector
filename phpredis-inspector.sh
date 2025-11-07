@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# PhpRedis Inspector — PHP Redis 环境检测与性能分析器
 
 set -e
 
