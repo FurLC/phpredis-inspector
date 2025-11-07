@@ -308,10 +308,9 @@ run_inspection() {
     
     echo ""
     print_info "Step 4: Checking Redis server..."
-    if check_redis_server; then
-        redis_installed=$REDIS_INSTALLED
-        redis_running=$REDIS_RUNNING
-    fi
+    check_redis_server
+    redis_installed=$REDIS_INSTALLED
+    redis_running=$REDIS_RUNNING
     
     echo ""
     print_info "Step 5: Checking PHP configuration..."

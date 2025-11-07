@@ -165,8 +165,14 @@ install_via_package() {
             ;;
         alpine)
             print_info "Installing via apk..."
+            # Extract PHP major version (e.g., "8.3" -> "8")
             PHP_MAJOR=$(echo "$PHP_VERSION_SHORT" | cut -d. -f1)
-            sudo apk add php${PHP_MAJOR}-redis || sudo apk add php-redis
+            if [ -n "$PHP_MAJOR" ] && [ "$PHP_MAJOR" -ge 5 ] 2>/dev/null; then
+                sudo apk add php${PHP_MAJOR}-redis || sudo apk add php-redis
+            else
+                print_warning "Could not determine PHP major version, trying generic package"
+                sudo apk add php-redis
+            fi
             ;;
         darwin)
             print_info "Installing via brew..."
@@ -229,21 +235,23 @@ enable_extension() {
         return 0
     fi
     
-    # Determine extension format (check existing extensions)
+    # Determine extension format by checking existing extension files
     EXT_FORMAT="extension=redis"
-    if $PHP_BINARY --ini | grep -q "\.so"; then
-        EXT_FORMAT="extension=redis.so"
-    fi
-    
-    # Find PHP configuration directory
     PHP_INI_DIR=$($PHP_BINARY --ini | grep "Scan for additional .ini files" | cut -d: -f2 | xargs)
+    
+    # Check format from existing ini files
+    if [ -n "$PHP_INI_DIR" ] && [ "$PHP_INI_DIR" != "(none)" ] && [ -d "$PHP_INI_DIR" ]; then
+        if grep -r "extension=.*\.so" "$PHP_INI_DIR" > /dev/null 2>&1; then
+            EXT_FORMAT="extension=redis.so"
+        fi
+    fi
     
     if [ -z "$PHP_INI_DIR" ] || [ "$PHP_INI_DIR" = "(none)" ]; then
         # Fallback to main php.ini
         PHP_INI=$($PHP_BINARY --ini | grep "Loaded Configuration File" | cut -d: -f2 | xargs)
         
         if [ -f "$PHP_INI" ]; then
-            if ! grep -q "extension=redis" "$PHP_INI"; then
+            if ! grep -qE "extension=redis(\.so)?" "$PHP_INI"; then
                 echo "$EXT_FORMAT" | sudo tee -a "$PHP_INI" > /dev/null
                 print_success "Added redis extension to $PHP_INI"
             fi
@@ -295,10 +303,17 @@ perform_installation() {
         print_info "Auto-detecting best installation method..."
         
         # Try package manager first (easiest)
-        if install_via_package 2>/dev/null; then
-            :
-        elif command -v pecl &> /dev/null && install_via_pecl 2>/dev/null; then
-            :
+        print_info "Trying package manager installation..."
+        if install_via_package; then
+            print_success "Package manager installation succeeded"
+        elif command -v pecl &> /dev/null; then
+            print_info "Package manager failed, trying PECL installation..."
+            if install_via_pecl; then
+                print_success "PECL installation succeeded"
+            else
+                print_warning "PECL installation failed, trying source installation..."
+                install_via_source
+            fi
         else
             print_warning "Standard methods failed, trying source installation..."
             install_via_source
